@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test QRIS Generator - ARIE PULSA</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eef2f7; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        h2 { color: #333; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #0056b3; }
+        #qris-result { margin-top: 25px; display: none; border-top: 2px dashed #eee; padding-top: 20px; }
+        #qris-image { width: 200px; height: 200px; background: #eee; margin: 10px auto; display: block; border: 1px solid #ddd; }
+        .status-badge { display: inline-block; padding: 8px 15px; border-radius: 20px; background: #fff3cd; color: #856404; font-size: 14px; margin-top: 10px; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>QRIS Tester</h2>
+    <div class="form-group">
+        <label>Nominal Transfer (Rp)</label>
+        <input type="number" id="amount" placeholder="Contoh: 10000" value="1000">
+    </div>
+    <button id="btn-generate" onclick="generateQRIS()">Generate QRIS Sekarang</button>
+
+    <div id="qris-result">
+        <p style="font-size: 14px; color: #666;">Silakan scan menggunakan m-Banking/E-Wallet:</p>
+        <img id="qris-image" src="" alt="QRIS Code">
+        <div id="status-display" class="status-badge">Menunggu Pembayaran...</div>
+        <p id="timer" style="font-size: 12px; color: #999; margin-top: 10px;"></p>
+    </div>
+</div>
+
+<script>
+    const CONFIG = {
+        API_KEY: "0Kpb6v3I4UySbPiUyq2eU2YQsh3cBr8j",
+        // Catatan: Ganti URL endpoint sesuai dokumentasi API Arie Pulsa yang Anda miliki
+        BASE_URL: "https://ariepulsa.my.id/api/qrisrealtime" 
+    };
+
+    let checkInterval;
+
+    async function generateQRIS() {
+        const amount = document.getElementById('amount').value;
+        const btn = document.getElementById('btn-generate');
+        
+        if (amount < 1000) return alert("Nominal minimal Rp 1.000");
+
+        btn.innerText = "Memproses...";
+        btn.disabled = true;
+
+        try {
+            // Simulasi Request ke API Arie Pulsa
+            // Sesuaikan parameter (method & params) dengan doc resmi mereka
+            const response = await fetch(`${CONFIG.BASE_URL}/qris?api_key=${CONFIG.API_KEY}&amount=${amount}`);
+            const data = await response.json();
+
+            if (data.status === true || data.status === "success") {
+                // Menampilkan QRIS (Asumsi API mengembalikan field 'qr_data' atau 'qr_url')
+                document.getElementById('qris-image').src = data.qr_url || `https://api.qrserver.com/v1/create-qr-code/?data=${data.qr_data}&size=200x200`;
+                document.getElementById('qris-result').style.display = "block";
+                
+                // Mulai auto-check status setiap 5 detik
+                startCheckingStatus(data.transaction_id);
+            } else {
+                alert("Gagal: " + (data.message || "Terjadi kesalahan pada API"));
+                btn.disabled = false;
+                btn.innerText = "Generate QRIS Sekarang";
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error: Tidak dapat terhubung ke API (Cek Console F12)");
+            btn.disabled = false;
+            btn.innerText = "Generate QRIS Sekarang";
+        }
+    }
+
+    function startCheckingStatus(trxId) {
+        if(checkInterval) clearInterval(checkInterval);
+
+        checkInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`${CONFIG.BASE_URL}/check-status?api_key=${CONFIG.API_KEY}&trx_id=${trxId}`);
+                const res = await response.json();
+
+                // Logika jika pembayaran berhasil (Status disesuaikan API)
+                if (res.status === "PAID" || res.status === "SUCCESS") {
+                    const badge = document.getElementById('status-display');
+                    badge.innerText = "PEMBAYARAN BERHASIL!";
+                    badge.className = "status-badge success";
+                    
+                    clearInterval(checkInterval);
+                    alert("Pembayaran Sukses! Saldo otomatis ditambahkan ke akun Anda.");
+                }
+            } catch (e) {
+                console.log("Sedang mengecek status...");
+            }
+        }, 5000); // Cek status tiap 5 detik
+    }
+</script>
+
+</body>
+</html>
