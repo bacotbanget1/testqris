@@ -37,7 +37,8 @@
 
 <script>
     const API_KEY = "hLBYWMCX2085XPmjXBDBh5VwictnboPK";
-    const API_URL = "https://ariepulsa.my.id/api/qrisrealtime";
+    // Kita tambahkan cors-anywhere sebagai jembatan
+    const API_URL = "https://cors-anywhere.herokuapp.com/https://ariepulsa.my.id/api/qrisrealtime";
     let checkTimer;
 
     async function generateQRIS() {
