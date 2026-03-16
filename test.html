@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QRIS Tester - Arie Pulsa</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: #16213e; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 380px; text-align: center; border: 1px solid #0f3460; }
+        input { width: 100%; padding: 12px; margin: 15px 0; border-radius: 8px; border: none; background: #0f3460; color: white; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #e94560; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #ff4d6d; }
+        button:disabled { background: #555; }
+        #result { margin-top: 20px; display: none; padding-top: 20px; border-top: 1px dashed #555; }
+        #qris-img { width: 220px; height: 220px; background: white; margin: 15px auto; padding: 10px; border-radius: 10px; }
+        .status { font-size: 14px; padding: 10px; border-radius: 5px; background: #f1c40f; color: #000; font-weight: bold; margin-top: 10px; }
+        .success { background: #2ecc71; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h3>QRIS Generator Test</h3>
+    <p style="font-size: 12px; color: #ccc;">Masukkan nominal untuk membuat QRIS</p>
+    
+    <input type="number" id="jumlah" placeholder="Nominal (Contoh: 5000)" value="1000">
+    <button id="btn-pay" onclick="generateQRIS()">BAYAR SEKARANG</button>
+
+    <div id="result">
+        <div id="qris-img-container">
+            <img id="qris-img" src="" alt="QRIS Code">
+        </div>
+        <div id="status-label" class="status">MENUNGGU PEMBAYARAN...</div>
+        <p style="font-size: 11px; color: #888; margin-top: 10px;">ID Deposit: <span id="depo-id">-</span></p>
+    </div>
+</div>
+
+<script>
+    const API_KEY = "hLBYWMCX2085XPmjXBDBh5VwictnboPK";
+    const API_URL = "https://ariepulsa.my.id/api/qrisrealtime";
+    let checkTimer;
+
+    async function generateQRIS() {
+        const jumlah = document.getElementById('jumlah').value;
+        const btn = document.getElementById('btn-pay');
+        
+        if (jumlah < 1000) return alert("Minimal nominal Rp 1.000");
+
+        btn.innerText = "MENGAMBIL DATA...";
+        btn.disabled = true;
+
+        // Data sesuai format screenshot (Open Deposit)
+        const bodyData = new FormData();
+        bodyData.append("api_key", API_KEY);
+        bodyData.append("action", "get-deposit");
+        bodyData.append("jumlah", jumlah);
+        bodyData.append("reff_id", "TEST" + Date.now()); // Reff ID unik pakai timestamp
+        bodyData.append("kode_channel", "QRISREALTIME");
+
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                body: bodyData
+            });
+
+            const res = await response.json();
+
+            if (res.status === true) {
+                // Menampilkan QRIS (Arie Pulsa biasanya kirim qr_url atau qr_data)
+                document.getElementById('qris-img').src = res.data.qr_url;
+                document.getElementById('depo-id').innerText = res.data.kode_deposit;
+                document.getElementById('result').style.display = "block";
+                
+                // Mulai auto-cek status
+                startChecking(res.data.kode_deposit);
+            } else {
+                alert("Gagal: " + res.pesan);
+                btn.disabled = false;
+                btn.innerText = "BAYAR SEKARANG";
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error: Masalah Koneksi/CORS. Pastikan ekstensi 'Allow CORS' aktif!");
+            btn.disabled = false;
+        }
+    }
+
+    function startChecking(kodeDepo) {
+        if(checkTimer) clearInterval(checkTimer);
+
+        checkTimer = setInterval(async () => {
+            const checkData = new FormData();
+            checkData.append("api_key", API_KEY);
+            checkData.append("action", "status-deposit");
+            checkData.append("kode_deposit", kodeDepo);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: checkData
+                });
+                const res = await response.json();
+
+                if (res.data.status === "Success") {
+                    const label = document.getElementById('status-label');
+                    label.innerText = "PEMBAYARAN SUKSES!";
+                    label.className = "status success";
+                    clearInterval(checkTimer);
+                    alert("Pembayaran Berhasil! Saldo otomatis bertambah.");
+                }
+            } catch (e) {
+                console.log("Checking status...");
+            }
+        }, 5000); // Cek setiap 5 detik
+    }
+</script>
+
+</body>
+</html>
